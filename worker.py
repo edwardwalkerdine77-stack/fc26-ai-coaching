@@ -1,9 +1,9 @@
 import cv2
 import time
-import json
 import queue
 import threading
 import requests
+import os
 
 from analyzer import Analyzer
 from coach import generate_coach_report
@@ -12,7 +12,11 @@ from coach import generate_coach_report
 job_queue = queue.Queue()
 results = {}
 
-# ---------------- DOWNLOAD VIDEO (3GB SUPPORT) ----------------
+# ---------------- DETECT INPUT TYPE ----------------
+def is_url(path):
+    return isinstance(path, str) and path.startswith("http")
+
+# ---------------- DOWNLOAD VIDEO (FOR LINKS ONLY) ----------------
 def download_video(url, output_path="video.mp4"):
     r = requests.get(url, stream=True)
     with open(output_path, "wb") as f:
@@ -22,9 +26,13 @@ def download_video(url, output_path="video.mp4"):
     return output_path
 
 # ---------------- CORE ANALYSIS ----------------
-def run_analysis(video_url, job_id):
+def run_analysis(video_input, job_id):
 
-    video_path = download_video(video_url)
+    # ✅ FIX: support BOTH local files and links
+    if is_url(video_input):
+        video_path = download_video(video_input)
+    else:
+        video_path = video_input
 
     analyzer = Analyzer(video_path)
     vision = analyzer.vision
@@ -186,9 +194,18 @@ def run_analysis(video_url, job_id):
     cap.release()
 
     # ---------------- FINAL REPORT ----------------
-    report = generate_coach_report(results[job_id])
+    try:
+        report = generate_coach_report(results[job_id])
+        results[job_id]["coach_report"] = report
+    except:
+        results[job_id]["coach_report"] = {
+            "playstyle": "Unknown",
+            "issues": ["Insufficient data"],
+            "strengths": [],
+            "fix_plan": [],
+            "training": []
+        }
 
-    results[job_id]["coach_report"] = report
     results[job_id]["done"] = True
     results[job_id]["percent"] = 100
 
@@ -204,9 +221,9 @@ threading.Thread(target=worker_loop, daemon=True).start()
 
 
 # ---------------- API ----------------
-def add_job(video_url):
+def add_job(video_input):
     job_id = str(len(results) + 1)
-    job_queue.put((job_id, video_url))
+    job_queue.put((job_id, video_input))
     return job_id
 
 
