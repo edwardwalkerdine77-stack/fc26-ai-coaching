@@ -1,5 +1,4 @@
 import streamlit as st
-import threading
 import json
 from worker import add_job, get_result
 
@@ -13,18 +12,36 @@ mode = st.sidebar.selectbox(
     ["Casual Analysis", "Ranked Review", "Pro Coaching"]
 )
 
-# ---------------- INPUT ----------------
-video_url = st.text_input("Paste Match Video Link (Google Drive / MP4 URL)")
+# ---------------- INPUT MODE ----------------
+input_mode = st.radio("Input Type", ["Upload File (PC)", "Video Link (Cloud)"])
 
+video_input = None
+
+# ---------------- LOCAL FILE MODE ----------------
+if input_mode == "Upload File (PC)":
+    uploaded_file = st.file_uploader("Upload Match Video")
+
+    if uploaded_file:
+        import tempfile
+
+        temp = tempfile.NamedTemporaryFile(delete=False)
+        temp.write(uploaded_file.read())
+        video_input = temp.name
+
+# ---------------- LINK MODE ----------------
+else:
+    video_input = st.text_input("Paste Match Video Link (Google Drive / MP4 URL)")
+
+# ---------------- UI ELEMENTS ----------------
 output_placeholder = st.empty()
 progress_bar = st.progress(0)
 
-if video_url:
+# ---------------- RUN ANALYSIS ----------------
+if video_input:
 
     if st.button("Analyse Match"):
 
-        job_id = add_job(video_url)
-
+        job_id = add_job(video_input)
         st.success(f"Job started: {job_id}")
 
         while True:
